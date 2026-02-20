@@ -93,7 +93,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <div class="featured-card">
             <img src="${featured.thumbnail}" />
             <div>
-              <h3><a href="/posts/${featured.id}.html">${featured.title}</a></h3>
+              <h3><a href="/post/${featured.id}">${featured.title}</a></h3>
               <p>${featured.description}</p>
             </div>
           </div>
@@ -108,7 +108,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         card.innerHTML = `
           <img src="${post.thumbnail}" />
-          <h3><a href="/posts/${post.id}.html">${post.title}</a></h3>
+          <h3><a href="/post/${post.id}">${post.title}</a></h3>
           <p>${post.description}</p>
         `;
 
@@ -119,7 +119,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const sidebar = document.getElementById("sidebarPosts");
       posts.slice(0, 5).forEach(post => {
         const li = document.createElement("li");
-        li.innerHTML = `<a href="/posts/${post.id}.html">${post.title}</a>`;
+        li.innerHTML = `<a href="/post/${post.id}">${post.title}</a>`;
         sidebar.appendChild(li);
       });
 
