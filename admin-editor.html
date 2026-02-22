@@ -22,7 +22,7 @@
   <main class="admin-shell" aria-label="Post editor workspace">
     <section class="admin-intro">
       <h1>Post Editor / Maker</h1>
-      <p class="meta">Upload images to Appwrite storage and export content package.</p>
+      <p class="meta">Upload images to Appwrite storage and publish static files directly to GitHub Pages repo.</p>
     </section>
 
     <section id="cmsBox" class="admin-workspace">
@@ -83,13 +83,22 @@
           <label for="gridUploader">Upload Grid Image</label>
           <input id="gridUploader" type="file" accept="image/*">
 
-          <div class="admin-grid-2">
-            <label class="switch-row" for="trendingFlag"><input id="trendingFlag" type="checkbox"> Mark as trending</label>
-            <label class="switch-row" for="publishNow"><input id="publishNow" type="checkbox" checked> Add/Update in posts.json</label>
-          </div>
+          <label class="switch-row" for="trendingFlag"><input id="trendingFlag" type="checkbox"> Mark as trending</label>
+
+          <h3>GitHub Publishing</h3>
+          <p class="meta">Use a GitHub Personal Access Token (repo scope) so publishing can update <code>posts/*.html</code> and <code>data/posts.json</code> without local directory access.</p>
+          <label for="ghOwner">GitHub Owner</label>
+          <input id="ghOwner" placeholder="username-or-org">
+          <label for="ghRepo">GitHub Repo</label>
+          <input id="ghRepo" placeholder="repository-name">
+          <label for="ghBranch">GitHub Branch</label>
+          <input id="ghBranch" value="main" placeholder="main">
+          <label for="ghToken">GitHub Token</label>
+          <input id="ghToken" type="password" placeholder="github_pat_...">
+          <button id="saveGithubConfigBtn" class="btn" type="button">Save GitHub Config</button>
 
           <div class="admin-actions">
-            <button id="exportBtn" class="btn" type="button">Export post package</button>
+            <button id="exportBtn" class="btn" type="button">Publish to Appwrite + GitHub</button>
             <p class="meta" id="exportState"></p>
           </div>
         </form>
