@@ -6,12 +6,12 @@ const sdk = window.Appwrite || {};
 let account;
 let storage;
 let databases;
-const REPO_BASE = (() => {
+const ADMIN_REPO_BASE = (() => {
   if (!location.hostname.endsWith('github.io')) return '';
   const first = location.pathname.split('/').filter(Boolean)[0];
   return first ? `/${first}` : '';
 })();
-const withBase = (path = '/') => `${REPO_BASE}${path.startsWith('/') ? path : `/${path}`}`;
+const adminWithBase = (path = '/') => `${ADMIN_REPO_BASE}${path.startsWith('/') ? path : `/${path}`}`;
 
 function initAppwriteClients() {
   if (!sdk.Client || !cfg.projectId || !cfg.endpoint) return false;
@@ -27,7 +27,7 @@ const slugify = (value) => value.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '
 
 function buildPostHtml(meta, bodyHtml, titleStyle = {}) {
   const heroImage = meta.heroImage || meta.ogImage || fallbackOg;
-  const canonical = `${window.location.origin}${REPO_BASE}/posts/${meta.slug}.html`;
+  const canonical = `${window.location.origin}${ADMIN_REPO_BASE}/posts/${meta.slug}.html`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(meta.title)}</title><meta name="description" content="${escapeHtml(meta.description)}"><link rel="canonical" href="${canonical}"><meta property="og:title" content="${escapeHtml(meta.title)}"><meta property="og:description" content="${escapeHtml(meta.description)}"><meta property="og:type" content="article"><meta property="og:url" content="${canonical}"><meta property="og:image" content="${escapeHtml(meta.ogImage || heroImage)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${escapeHtml(meta.ogImage || heroImage)}"><link rel="stylesheet" href="../css/style.css"><style>.article-section{margin:1.1rem 0}.article-text{line-height:1.8}.article-grid{display:grid;gap:.8rem}.article-grid-1{grid-template-columns:1fr}.article-grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}.article-grid img,.hero-image{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:12px}@media(max-width:900px){.article-grid-2{grid-template-columns:1fr}}</style><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"${escapeHtml(meta.title)}","description":"${escapeHtml(meta.description)}","image":"${escapeHtml(meta.ogImage || heroImage)}","datePublished":"${meta.publishDate}","author":{"@type":"Person","name":"${escapeHtml(meta.author)}"},"publisher":{"@type":"Organization","name":"M2Z Reviews"}}</script></head><body data-page="post" data-slug="${meta.slug}"><header class="site-header"><a class="logo" href="../index.html">M2Z Reviews</a><nav class="nav"><a href="../reviews.html">Reviews</a><a href="../compare.html">Compare</a><a href="../about.html">About</a><button class="theme-toggle" data-theme-toggle>🌙</button></nav></header><main class="layout"><article class="content article"><p class="meta">Published ${meta.publishDate} • ${meta.readingTime}</p><h1 style="font-size:${Number(titleStyle.titleSize) || 32}px;font-weight:${titleStyle.titleWeight || '700'};text-align:${titleStyle.titleAlign || 'left'};">${escapeHtml(meta.title)}</h1><img class="hero-image" src="${escapeHtml(heroImage)}" alt="${escapeHtml(meta.heroAlt || `${meta.title} hero image`)}">${bodyHtml}<section class="related"><h2>Related posts</h2><div class="posts-grid" data-related-posts></div></section></article><aside class="sidebar"><section class="card"><h3>Latest posts</h3><ul class="list" data-sidebar-latest></ul></section><section class="card"><h3>Trending</h3><ul class="list" data-sidebar-trending></ul></section></aside></main><footer class="site-footer">© 2026 M2Z Reviews.</footer><script src="../js/appwrite-config.js" defer></script><script src="../js/global.js" defer></script></body></html>`;
 }
 
@@ -353,11 +353,11 @@ async function saveSettingsDocument(data) {
 async function initDashboardPage() {
   if (!initAppwriteClients()) return;
   const ok = await requireSession();
-  if (!ok) { window.location.href = withBase('/admin.html'); return; }
+  if (!ok) { window.location.href = adminWithBase('/admin.html'); return; }
 
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     try { await account.deleteSession('current'); } catch {}
-    window.location.href = withBase('/admin.html');
+    window.location.href = adminWithBase('/admin.html');
   });
 
   // side-nav tabs
@@ -393,7 +393,7 @@ async function initDashboardPage() {
   `;
 
   const top = posts.slice().sort((a, b) => (Number(b._stats.likes || 0) + Number(b._stats.shares || 0) + Number(b._stats.views || 0)) - (Number(a._stats.likes || 0) + Number(a._stats.shares || 0) + Number(a._stats.views || 0))).slice(0, 8);
-  document.getElementById('topPosts').innerHTML = top.map((p) => `<li><a href="${withBase(`/posts/${p.slug}.html`)}">${p.title}</a><div class="meta">Views: ${p._stats.views || 0} • Likes: ${p._stats.likes || 0} • Shares: ${p._stats.shares || 0}</div></li>`).join('') || '<li class="meta">No post stats yet.</li>';
+  document.getElementById('topPosts').innerHTML = top.map((p) => `<li><a href="${adminWithBase(`/posts/${p.slug}.html`)}">${p.title}</a><div class="meta">Views: ${p._stats.views || 0} • Likes: ${p._stats.likes || 0} • Shares: ${p._stats.shares || 0}</div></li>`).join('') || '<li class="meta">No post stats yet.</li>';
 
   drawBarChart(document.getElementById('categoryChart'), Object.keys(categoryCounts), Object.values(categoryCounts), '#2456e8');
   drawBarChart(document.getElementById('engagementChart'), top.map((p) => p.slug || 'post'), top.map((p) => Number(p._stats.likes || 0) + Number(p._stats.shares || 0) + Number(p._stats.views || 0)), '#0ea5a4');
@@ -465,7 +465,7 @@ async function initLoginPage() {
   if (!initAppwriteClients()) return;
   try {
     await account.get();
-    window.location.href = withBase('/admin-dashboard.html');
+    window.location.href = adminWithBase('/admin-dashboard.html');
     return;
   } catch {}
 
@@ -478,7 +478,7 @@ async function initLoginPage() {
     try {
       setError('');
       await account.createEmailPasswordSession(email.value.trim(), password.value);
-      window.location.href = withBase('/admin-dashboard.html');
+      window.location.href = adminWithBase('/admin-dashboard.html');
     } catch (e) {
       setError(e.message || 'Login failed');
     }
@@ -487,7 +487,7 @@ async function initLoginPage() {
   document.getElementById('githubLoginBtn')?.addEventListener('click', async () => {
     try {
       setError('');
-      await account.createOAuth2Session('github', `${window.location.origin}${withBase('/admin-dashboard.html')}`, `${window.location.origin}${withBase('/admin.html')}`);
+      await account.createOAuth2Session('github', `${window.location.origin}${adminWithBase('/admin-dashboard.html')}`, `${window.location.origin}${adminWithBase('/admin.html')}`);
     } catch (e) {
       setError(e.message || 'GitHub login failed');
     }
@@ -497,7 +497,7 @@ async function initLoginPage() {
 async function initEditorPage() {
   if (!initAppwriteClients()) return;
   const ok = await requireSession();
-  if (!ok) { window.location.href = withBase('/admin.html'); return; }
+  if (!ok) { window.location.href = adminWithBase('/admin.html'); return; }
 
   document.getElementById('title')?.addEventListener('input', (e) => {
     document.getElementById('slug').value = slugify(e.target.value);
@@ -509,7 +509,7 @@ async function initEditorPage() {
   });
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     try { await account.deleteSession('current'); } catch {}
-    window.location.href = withBase('/admin.html');
+    window.location.href = adminWithBase('/admin.html');
   });
 
   beautifyEmbeddedEditor();
