@@ -191,14 +191,69 @@ async function connectUploaders() {
 }
 
 async function upsertPostInAppwrite(postEntry) {
-  if (!databases || !cfg.databaseId || !cfg.postsCollectionId) return;
+  if (!databases || !cfg.databaseId || !cfg.postsCollectionId) {
+    console.error("❌ Appwrite not configured properly.");
+    return;
+  }
+
   try {
-    const docs = await databases.listDocuments(cfg.databaseId, cfg.postsCollectionId, [sdk.Query.equal('slug', postEntry.slug), sdk.Query.limit(1)]);
+    console.log("🚀 Checking existing document with slug:", postEntry.slug);
+
+    const docs = await databases.listDocuments(
+      cfg.databaseId,
+      cfg.postsCollectionId,
+      [
+        sdk.Query.equal('slug', postEntry.slug),
+        sdk.Query.limit(1)
+      ]
+    );
+
     const existing = (docs.documents || [])[0];
-    const payload = { ...postEntry, status: 'published', stats: JSON.stringify(postEntry.stats || { likes: 0, shares: 0, views: 0 }) };
-    if (existing) await databases.updateDocument(cfg.databaseId, cfg.postsCollectionId, existing.$id, payload);
-    else await databases.createDocument(cfg.databaseId, cfg.postsCollectionId, sdk.ID.unique(), payload);
-  } catch {}
+
+    const payload = {
+      ...postEntry,
+      status: 'published',
+      stats: JSON.stringify(postEntry.stats || { likes: 0, shares: 0, views: 0 })
+    };
+
+    console.log("📦 Payload being sent to Appwrite:");
+    console.log(JSON.stringify(payload, null, 2));
+
+    if (existing) {
+      console.log("✏️ Updating existing document:", existing.$id);
+
+      const res = await databases.updateDocument(
+        cfg.databaseId,
+        cfg.postsCollectionId,
+        existing.$id,
+        payload
+      );
+
+      console.log("✅ Update success:", res);
+
+    } else {
+      console.log("🆕 Creating new document");
+
+      const res = await databases.createDocument(
+        cfg.databaseId,
+        cfg.postsCollectionId,
+        sdk.ID.unique(),
+        payload
+      );
+
+      console.log("✅ Create success:", res);
+    }
+
+  } catch (error) {
+    console.error("❌ APPWRITE ERROR START ❌");
+    console.error("Full Error Object:", error);
+    console.error("Message:", error?.message);
+    console.error("Code:", error?.code);
+    console.error("Type:", error?.type);
+    console.error("Response:", error?.response);
+    console.error("Stack:", error?.stack);
+    console.error("❌ APPWRITE ERROR END ❌");
+  }
 }
 
 async function exportPackage() {
@@ -435,8 +490,15 @@ async function initDashboardPage() {
       siteOgImage.value = st.OGImage || '';
       siteHeroImage.value = st.HomeHeroImage || '';
     }
-  } catch {}
-
+  } catch (error) {
+  console.error("❌ FULL APPWRITE ERROR:");
+  console.error("Message:", error.message);
+  console.error("Code:", error.code);
+  console.error("Type:", error.type);
+  console.error("Response:", error.response);
+  console.error("Full Object:", error);
+  throw error; // optional but useful
+}
   document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
     try {
       const payload = {
