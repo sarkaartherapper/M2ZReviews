@@ -1,5 +1,12 @@
 const SITE_URL = 'https://example.com';
 
+const REPO_BASE = (() => {
+  if (!location.hostname.endsWith('github.io')) return '';
+  const first = location.pathname.split('/').filter(Boolean)[0];
+  return first ? `/${first}` : '';
+})();
+const withBase = (path = '/') => `${REPO_BASE}${path.startsWith('/') ? path : `/${path}`}`;
+
 
 
 const state = { posts: [], settings: null };
@@ -20,7 +27,7 @@ async function initHomepage() {
   if (categoriesEl) categoriesEl.innerHTML = [...new Set(posts.map((p) => p.category))].map((c) => `<span class="badge">${c}</span>`).join(' ');
 
   const trendingEl = document.querySelector('[data-trending-block]');
-  if (trendingEl) trendingEl.innerHTML = posts.filter((p) => p.trending).slice(0, 3).map((p) => `<li><a href="/posts/${p.slug}.html">${p.title}</a></li>`).join('');
+  if (trendingEl) trendingEl.innerHTML = posts.filter((p) => p.trending).slice(0, 3).map((p) => `<li><a href="${withBase(`/posts/${p.slug}.html`)}">${p.title}</a></li>`).join('');
 
   injectSearch(posts);
 
@@ -129,7 +136,7 @@ function initThemeToggle() {
 
 function renderList(el, posts, opts = {}) {
   if (!el) return;
-  el.innerHTML = posts.map((p) => `<li><a href="/posts/${p.slug}.html">${p.title}</a>${opts.meta ? `<div class="meta">${p.publishDate} • ${p.readingTime}</div>` : ''}</li>`).join('');
+  el.innerHTML = posts.map((p) => `<li><a href="${withBase(`/posts/${p.slug}.html`)}">${p.title}</a>${opts.meta ? `<div class="meta">${p.publishDate} • ${p.readingTime}</div>` : ''}</li>`).join('');
 }
 
 function truncate(text = '', max = 200) {
@@ -138,10 +145,10 @@ function truncate(text = '', max = 200) {
 
 function postCard(post) {
   return `<article class="post-card">
-    <a href="/posts/${post.slug}.html"><img loading="lazy" src="${post.heroImage || 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1400&q=80'}" alt="${post.heroAlt || post.title}"></a>
+    <a href="${withBase(`/posts/${post.slug}.html`)}"><img loading="lazy" src="${post.heroImage || 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1400&q=80'}" alt="${post.heroAlt || post.title}"></a>
     <div class="copy">
       <span class="badge">${post.category}</span>
-      <h3><a href="/posts/${post.slug}.html">${post.title}</a></h3>
+      <h3><a href="${withBase(`/posts/${post.slug}.html`)}">${post.title}</a></h3>
       <p>${truncate(post.description || '', 80)}</p>
       <div class="meta">${post.publishDate} • ${post.readingTime}</div>
     </div>
@@ -176,10 +183,10 @@ function injectBreadcrumb() {
   if (page === 'home' || page === 'admin' || document.querySelector('.breadcrumb')) return;
 
   const map = {
-    listing: [{ name: 'Home', href: '/' }, { name: 'Reviews', href: '/reviews.html' }],
-    compare: [{ name: 'Home', href: '/' }, { name: 'Compare', href: '/compare.html' }],
-    about: [{ name: 'Home', href: '/' }, { name: 'About', href: '/about.html' }],
-    post: [{ name: 'Home', href: '/' }, { name: 'Reviews', href: '/reviews.html' }, { name: 'Article', href: location.pathname }]
+    listing: [{ name: 'Home', href: withBase('/') }, { name: 'Reviews', href: withBase('/reviews.html') }],
+    compare: [{ name: 'Home', href: withBase('/') }, { name: 'Compare', href: withBase('/compare.html') }],
+    about: [{ name: 'Home', href: withBase('/') }, { name: 'About', href: withBase('/about.html') }],
+    post: [{ name: 'Home', href: withBase('/') }, { name: 'Reviews', href: withBase('/reviews.html') }, { name: 'Article', href: location.pathname }]
   };
 
   const items = map[page];
@@ -238,7 +245,7 @@ function injectSearch(posts) {
     }
     const matches = posts.filter((p) => `${p.title} ${p.description} ${p.category}`.toLowerCase().includes(v)).slice(0, 6);
     results.hidden = false;
-    results.innerHTML = matches.length ? matches.map((p) => `<a href="/posts/${p.slug}.html">${p.title}<span>${p.category}</span></a>`).join('') : '<div class="search-empty">No matching posts</div>';
+    results.innerHTML = matches.length ? matches.map((p) => `<a href="${withBase(`/posts/${p.slug}.html`)}">${p.title}<span>${p.category}</span></a>`).join('') : '<div class="search-empty">No matching posts</div>';
   };
 
   input.addEventListener('input', (e) => renderResults(e.target.value));
@@ -246,7 +253,7 @@ function injectSearch(posts) {
   wrap.addEventListener('submit', (e) => {
     e.preventDefault();
     const q = input.value.trim();
-    location.href = q ? `/reviews.html?q=${encodeURIComponent(q)}` : '/reviews.html';
+    location.href = q ? `${withBase('/reviews.html')}?q=${encodeURIComponent(q)}` : withBase('/reviews.html');
   });
 
   document.addEventListener('click', (e) => { if (!wrap.contains(e.target)) results.hidden = true; });
@@ -278,8 +285,8 @@ function enhanceFooter(posts) {
   footer.innerHTML = `
     <section class="footer-grid">
       <div><h3>M2Z Reviews</h3><p>Trusted product reviews and buying insights.</p><p class="meta">Last update: ${lastUpdated}</p></div>
-      <div><h4>Navigate</h4><ul><li><a href="/reviews.html">Reviews</a></li><li><a href="/compare.html">Compare</a></li><li><a href="/about.html">About</a></li></ul></div>
-      <div><h4>Support</h4><ul><li><a href="/about.html">Disclaimer</a></li><li><a href="/about.html">Affiliate Info</a></li></ul></div>
+      <div><h4>Navigate</h4><ul><li><a href="${withBase('/reviews.html')}">Reviews</a></li><li><a href="${withBase('/compare.html')}">Compare</a></li><li><a href="${withBase('/about.html')}">About</a></li></ul></div>
+      <div><h4>Support</h4><ul><li><a href="${withBase('/about.html')}">Disclaimer</a></li><li><a href="${withBase('/about.html')}">Affiliate Info</a></li></ul></div>
       <div><h4>Newsletter</h4><form class="footer-news" data-footer-news><input type="email" required placeholder="Email address" aria-label="Email address" /><button class="btn" type="submit">Subscribe</button></form><p class="meta" data-news-status></p></div>
     </section>
     <p class="footer-bottom">© ${year} M2Z Reviews. All rights reserved.</p>
@@ -546,7 +553,7 @@ async function initHomepage() {
   if (categoriesEl) categoriesEl.innerHTML = [...new Set(posts.map((p) => p.category))].map((c) => `<span class="badge">${c}</span>`).join(' ');
 
   const trendingEl = document.querySelector('[data-trending-block]');
-  if (trendingEl) trendingEl.innerHTML = posts.filter((p) => p.trending).slice(0, 3).map((p) => `<li><a href="/posts/${p.slug}.html">${p.title}</a></li>`).join('');
+  if (trendingEl) trendingEl.innerHTML = posts.filter((p) => p.trending).slice(0, 3).map((p) => `<li><a href="${withBase(`/posts/${p.slug}.html`)}">${p.title}</a></li>`).join('');
 
   injectSearch(posts);
 
@@ -575,7 +582,7 @@ async function initHomepage() {
   const categoriesEl = document.querySelector('[data-categories]');
   if (categoriesEl) categoriesEl.innerHTML = [...new Set(posts.map((p) => p.category))].map((c) => `<span class="badge">${c}</span>`).join(' ');
   const trendingEl = document.querySelector('[data-trending-block]');
-  if (trendingEl) trendingEl.innerHTML = posts.filter((p) => p.trending).slice(0, 3).map((p) => `<li><a href="/posts/${p.slug}.html">${p.title}</a></li>`).join('');
+  if (trendingEl) trendingEl.innerHTML = posts.filter((p) => p.trending).slice(0, 3).map((p) => `<li><a href="${withBase(`/posts/${p.slug}.html`)}">${p.title}</a></li>`).join('');
   injectSearch(posts);
 }
 
