@@ -535,57 +535,6 @@ function renderReviewsControls(posts) {
   render();
 }
 
-async function initHomepage() {
-
-
-  async function initHomepage() {
-  const settings = await loadSettings();
-  applyGlobalMetaSettings(settings);
-  const posts = await loadPosts();
-
-  const latestGrid = document.querySelector('[data-latest-grid]');
-  if (latestGrid) latestGrid.innerHTML = posts.slice(0, 6).map(postCard).join('');
-
-  renderList(document.querySelector('[data-sidebar-latest]'), posts.slice(0, 5), { meta: true });
-  renderList(document.querySelector('[data-sidebar-trending]'), posts.filter((p) => p.trending).slice(0, 5));
-
-  const categoriesEl = document.querySelector('[data-categories]');
-  if (categoriesEl) categoriesEl.innerHTML = [...new Set(posts.map((p) => p.category))].map((c) => `<span class="badge">${c}</span>`).join(' ');
-
-  const trendingEl = document.querySelector('[data-trending-block]');
-  if (trendingEl) trendingEl.innerHTML = posts.filter((p) => p.trending).slice(0, 3).map((p) => `<li><a href="${withBase(`/posts/${p.slug}.html`)}">${p.title}</a></li>`).join('');
-
-  injectSearch(posts);
-
-  // ✅ Inject homepage ad here, after .blocks exists
-  const blocks = document.querySelector('.blocks');
-  if (blocks && settings.HPAdURL) {
-    const ad = document.createElement('section');
-    ad.className = 'ad-area';
-    ad.innerHTML = `
-      <span class="ad-badge">Advertisement</span>
-      <a href="${settings.HPAdRedURL || '#'}" target="_blank" rel="nofollow noopener">
-        <img loading="lazy" src="${settings.HPAdURL}" alt="Sponsored banner advertisement">
-      </a>
-    `;
-    blocks.parentElement.insertBefore(ad, blocks);
-  }
-}
-
-  const settings = await loadSettings();
-  applyGlobalMetaSettings(settings);
-  const posts = await loadPosts();
-  const latestGrid = document.querySelector('[data-latest-grid]');
-  if (latestGrid) latestGrid.innerHTML = posts.slice(0, 6).map(postCard).join('');
-  renderList(document.querySelector('[data-sidebar-latest]'), posts.slice(0, 5), { meta: true });
-  renderList(document.querySelector('[data-sidebar-trending]'), posts.filter((p) => p.trending).slice(0, 5));
-  const categoriesEl = document.querySelector('[data-categories]');
-  if (categoriesEl) categoriesEl.innerHTML = [...new Set(posts.map((p) => p.category))].map((c) => `<span class="badge">${c}</span>`).join(' ');
-  const trendingEl = document.querySelector('[data-trending-block]');
-  if (trendingEl) trendingEl.innerHTML = posts.filter((p) => p.trending).slice(0, 3).map((p) => `<li><a href="${withBase(`/posts/${p.slug}.html`)}">${p.title}</a></li>`).join('');
-  injectSearch(posts);
-}
-
 async function initPostPage() {
   const slug = document.body.dataset.slug;
   if (!slug) return;
