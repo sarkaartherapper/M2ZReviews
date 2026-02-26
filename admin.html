@@ -7,13 +7,13 @@
   <meta name="description" content="Protected admin login for M2Z Reviews content management.">
   <meta name="robots" content="noindex,nofollow">
   <link rel="canonical" href="https://example.com/admin.html">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="./css/style.css">
 </head>
 <body data-page="admin" data-admin-page="login">
   <header class="site-header">
-    <a class="logo" href="/">M2Z Reviews</a>
+    <a class="logo" href="./index.html">M2Z Reviews</a>
     <nav class="nav">
-      <a href="/">Back to site</a>
+      <a href="./index.html">Back to site</a>
       <button class="theme-toggle" data-theme-toggle>🌙</button>
     </nav>
   </header>
@@ -31,14 +31,15 @@
       <input id="adminPassword" type="password" placeholder="••••••••">
 
       <button id="loginBtn" class="btn" type="button">Login</button>
+      <button id="githubLoginBtn" class="btn" type="button">Login with GitHub</button>
       <p id="authError" class="admin-error" hidden></p>
     </section>
   </main>
 
   <footer class="site-footer">Internal use only.</footer>
   <script src="https://cdn.jsdelivr.net/npm/appwrite@14.0.1"></script>
-  <script src="/js/appwrite-config.js"></script>
-  <script src="/js/global.js" defer></script>
-  <script src="/js/admin.js" defer></script>
+  <script src="./js/appwrite-config.js"></script>
+  <script src="./js/global.js" defer></script>
+  <script src="./js/admin.js" defer></script>
 </body>
 </html>

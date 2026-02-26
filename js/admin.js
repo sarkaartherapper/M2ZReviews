@@ -6,6 +6,12 @@ const sdk = window.Appwrite || {};
 let account;
 let storage;
 let databases;
+const ADMIN_REPO_BASE = (() => {
+  if (!location.hostname.endsWith('github.io')) return '';
+  const first = location.pathname.split('/').filter(Boolean)[0];
+  return first ? `/${first}` : '';
+})();
+const adminWithBase = (path = '/') => `${ADMIN_REPO_BASE}${path.startsWith('/') ? path : `/${path}`}`;
 
 function initAppwriteClients() {
   if (!sdk.Client || !cfg.projectId || !cfg.endpoint) return false;
@@ -19,6 +25,100 @@ function initAppwriteClients() {
 const escapeHtml = (v = '') => v.replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const slugify = (value) => value.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-');
 
+function buildPostHtml(meta, bodyHtml, titleStyle = {}) {
+  const heroImage = meta.heroImage || meta.ogImage || fallbackOg;
+  const canonical = `${window.location.origin}${ADMIN_REPO_BASE}/posts/${meta.slug}.html`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(meta.title)}</title><meta name="description" content="${escapeHtml(meta.description)}"><link rel="canonical" href="${canonical}"><meta property="og:title" content="${escapeHtml(meta.title)}"><meta property="og:description" content="${escapeHtml(meta.description)}"><meta property="og:type" content="article"><meta property="og:url" content="${canonical}"><meta property="og:image" content="${escapeHtml(meta.ogImage || heroImage)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${escapeHtml(meta.ogImage || heroImage)}"><link rel="stylesheet" href="../css/style.css"><style>.article-section{margin:1.1rem 0}.article-text{line-height:1.8}.article-grid{display:grid;gap:.8rem}.article-grid-1{grid-template-columns:1fr}.article-grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}.article-grid img,.hero-image{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:12px}@media(max-width:900px){.article-grid-2{grid-template-columns:1fr}}</style><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"${escapeHtml(meta.title)}","description":"${escapeHtml(meta.description)}","image":"${escapeHtml(meta.ogImage || heroImage)}","datePublished":"${meta.publishDate}","author":{"@type":"Person","name":"${escapeHtml(meta.author)}"},"publisher":{"@type":"Organization","name":"M2Z Reviews"}}</script></head><body data-page="post" data-slug="${meta.slug}"><header class="site-header"><a class="logo" href="../index.html">M2Z Reviews</a><nav class="nav"><a href="../reviews.html">Reviews</a><a href="../compare.html">Compare</a><a href="../about.html">About</a><button class="theme-toggle" data-theme-toggle>🌙</button></nav></header><main class="layout"><article class="content article"><p class="meta">Published ${meta.publishDate} • ${meta.readingTime}</p><h1 style="font-size:${Number(titleStyle.titleSize) || 32}px;font-weight:${titleStyle.titleWeight || '700'};text-align:${titleStyle.titleAlign || 'left'};">${escapeHtml(meta.title)}</h1><img class="hero-image" src="${escapeHtml(heroImage)}" alt="${escapeHtml(meta.heroAlt || `${meta.title} hero image`)}">${bodyHtml}<section class="related"><h2>Related posts</h2><div class="posts-grid" data-related-posts></div></section></article><aside class="sidebar"><section class="card"><h3>Latest posts</h3><ul class="list" data-sidebar-latest></ul></section><section class="card"><h3>Trending</h3><ul class="list" data-sidebar-trending></ul></section></aside></main><footer class="site-footer">© 2026 M2Z Reviews.</footer><script src="../js/appwrite-config.js" defer></script><script src="../js/global.js" defer></script></body></html>`;
+}
+
+function getGithubConfig() {
+  return {
+    owner: document.getElementById('ghOwner')?.value.trim() || localStorage.getItem('m2z-gh-owner') || '',
+    repo: document.getElementById('ghRepo')?.value.trim() || localStorage.getItem('m2z-gh-repo') || '',
+    branch: document.getElementById('ghBranch')?.value.trim() || localStorage.getItem('m2z-gh-branch') || 'main',
+    token: document.getElementById('ghToken')?.value.trim() || localStorage.getItem('m2z-gh-token') || ''
+  };
+}
+
+function saveGithubConfig() {
+  const cfgGh = getGithubConfig();
+  localStorage.setItem('m2z-gh-owner', cfgGh.owner);
+  localStorage.setItem('m2z-gh-repo', cfgGh.repo);
+  localStorage.setItem('m2z-gh-branch', cfgGh.branch);
+  localStorage.setItem('m2z-gh-token', cfgGh.token);
+}
+
+async function githubRequest(path, options = {}, gh = getGithubConfig()) {
+  const res = await fetch(`https://api.github.com${path}`, {
+    ...options,
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${gh.token}`,
+      'Content-Type': 'application/json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(options.headers || {})
+    }
+  });
+  if (!res.ok) throw new Error(`GitHub API failed (${res.status})`);
+  return res.status === 204 ? null : res.json();
+}
+
+async function upsertGitHubFile(path, content, message, gh = getGithubConfig()) {
+  let sha = null;
+  try {
+    const current = await githubRequest(`/repos/${gh.owner}/${gh.repo}/contents/${path}?ref=${encodeURIComponent(gh.branch)}`, { method: 'GET' }, gh);
+    sha = current?.sha || null;
+  } catch {}
+
+  return githubRequest(`/repos/${gh.owner}/${gh.repo}/contents/${path}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      message,
+      branch: gh.branch,
+      content: btoa(unescape(encodeURIComponent(content))),
+      ...(sha ? { sha } : {})
+    })
+  }, gh);
+}
+
+function buildSitemapXml(posts) {
+  const site = window.location.origin;
+  const staticPages = ['/', '/reviews.html', '/compare.html', '/about.html'];
+  const urls = [
+    ...staticPages.map((path) => ({ loc: `${site}${path}`, lastmod: new Date().toISOString().slice(0, 10) })),
+    ...posts.map((p) => ({ loc: `${site}/posts/${p.slug}.html`, lastmod: p.publishDate }))
+  ];
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${u.loc}</loc><lastmod>${u.lastmod}</lastmod></url>`).join('\n')}\n</urlset>\n`;
+}
+
+async function publishToGitHub(postEntry, html, statusEl) {
+  const gh = getGithubConfig();
+  if (!gh.owner || !gh.repo || !gh.branch || !gh.token) throw new Error('Missing GitHub owner/repo/branch/token in editor settings.');
+
+  statusEl.textContent = 'Publishing post files to GitHub...';
+  saveGithubConfig();
+
+  const postsData = await fetch('/data/posts.json').then((r) => r.json()).catch(() => []);
+  const cleanPost = {
+    title: postEntry.title,
+    slug: postEntry.slug,
+    description: postEntry.description,
+    ogImage: postEntry.ogImage,
+    heroImage: postEntry.heroImage,
+    heroAlt: postEntry.heroAlt,
+    publishDate: postEntry.publishDate,
+    readingTime: postEntry.readingTime,
+    category: postEntry.category,
+    author: postEntry.author,
+    trending: postEntry.trending
+  };
+  const updatedPosts = [cleanPost, ...postsData.filter((p) => p.slug !== postEntry.slug)].sort((a, b) => new Date(b.publishDate) - new Date(a.publishDate));
+
+  await upsertGitHubFile(`posts/${postEntry.slug}.html`, html, `Publish post: ${postEntry.slug}`, gh);
+  await upsertGitHubFile('data/posts.json', JSON.stringify(updatedPosts, null, 2), `Update posts index: ${postEntry.slug}`, gh);
+  await upsertGitHubFile('sitemap.xml', buildSitemapXml(updatedPosts), `Update sitemap for: ${postEntry.slug}`, gh);
+}
+
 function sectionToHtml(section, title) {
   if (section.type === 'text') {
     const content = (section.content || '').replace(/\n/g, '<br>');
@@ -30,14 +130,6 @@ function sectionToHtml(section, title) {
   }
   if (section.type === 'button') return `<section class="article-section" style="text-align:${section.align || 'left'};"><a class="btn" href="${escapeHtml(section.link || '#')}" target="_blank" rel="nofollow noopener">${escapeHtml(section.text || 'Learn more')}</a></section>`;
   return '';
-}
-
-function buildPostHtml(meta, editorData) {
-  const heroImage = editorData.heroImage || meta.ogImage || fallbackOg;
-  const ogImage = meta.ogImage || heroImage;
-  const sections = (editorData.sections || []).map((s) => sectionToHtml(s, meta.title)).join('\n');
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(meta.title)}</title><meta name="description" content="${escapeHtml(meta.description)}"><link rel="canonical" href="${SITE_URL}/posts/${meta.slug}.html"><meta property="og:title" content="${escapeHtml(meta.title)}"><meta property="og:description" content="${escapeHtml(meta.description)}"><meta property="og:type" content="article"><meta property="og:url" content="${SITE_URL}/posts/${meta.slug}.html"><meta property="og:image" content="${escapeHtml(ogImage)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${escapeHtml(ogImage)}"><link rel="stylesheet" href="/css/style.css"><style>.article-section{margin:1.1rem 0}.article-text{line-height:1.8}.article-grid{display:grid;gap:.8rem}.article-grid-1{grid-template-columns:1fr}.article-grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}.article-grid img,.hero-image{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:12px}@media(max-width:900px){.article-grid-2{grid-template-columns:1fr}}</style><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"${escapeHtml(meta.title)}","description":"${escapeHtml(meta.description)}","image":"${escapeHtml(ogImage)}","datePublished":"${meta.publishDate}","author":{"@type":"Person","name":"${escapeHtml(meta.author)}"},"publisher":{"@type":"Organization","name":"M2Z Reviews"}}</script></head><body data-page="post" data-slug="${meta.slug}"><header class="site-header"><a class="logo" href="/">M2Z Reviews</a><nav class="nav"><a href="/reviews.html">Reviews</a><a href="/compare.html">Compare</a><a href="/about.html">About</a><button class="theme-toggle" data-theme-toggle>🌙</button></nav></header><main class="layout"><article class="content article"><p class="meta">Published ${meta.publishDate} • ${meta.readingTime}</p><h1 style="font-size:${Number(editorData.titleSize) || 32}px;font-weight:${editorData.titleWeight || '700'};text-align:${editorData.titleAlign || 'left'};">${escapeHtml(meta.title)}</h1><img class="hero-image" src="${escapeHtml(heroImage)}" alt="${escapeHtml(meta.title)} hero image">${sections}<section class="related"><h2>Related posts</h2><div class="posts-grid" data-related-posts></div></section></article><aside class="sidebar"><section class="card"><h3>Latest posts</h3><ul class="list" data-sidebar-latest></ul></section><section class="card"><h3>Trending</h3><ul class="list" data-sidebar-trending></ul></section></aside></main><footer class="site-footer">© 2026 M2Z Reviews.</footer><script src="/js/appwrite-config.js" defer></script><script src="/js/global.js" defer></script></body></html>`;
 }
 
 function beautifyEmbeddedEditor() {
@@ -98,15 +190,70 @@ async function connectUploaders() {
   });
 }
 
-async function upsertPostInAppwrite(postEntry, html) {
-  if (!databases || !cfg.databaseId || !cfg.postsCollectionId) return;
+async function upsertPostInAppwrite(postEntry) {
+  if (!databases || !cfg.databaseId || !cfg.postsCollectionId) {
+    console.error("❌ Appwrite not configured properly.");
+    return;
+  }
+
   try {
-    const docs = await databases.listDocuments(cfg.databaseId, cfg.postsCollectionId, [sdk.Query.limit(100)]);
-    const existing = (docs.documents || []).find((d) => d.slug === postEntry.slug);
-    const payload = { ...postEntry, contentHtml: html, status: 'published', stats: JSON.stringify(postEntry.stats || { likes: 0, shares: 0, views: 0 }) };
-    if (existing) await databases.updateDocument(cfg.databaseId, cfg.postsCollectionId, existing.$id, payload);
-    else await databases.createDocument(cfg.databaseId, cfg.postsCollectionId, sdk.ID.unique(), payload);
-  } catch {}
+    console.log("🚀 Checking existing document with slug:", postEntry.slug);
+
+    const docs = await databases.listDocuments(
+      cfg.databaseId,
+      cfg.postsCollectionId,
+      [
+        sdk.Query.equal('slug', postEntry.slug),
+        sdk.Query.limit(1)
+      ]
+    );
+
+    const existing = (docs.documents || [])[0];
+
+    const payload = {
+      ...postEntry,
+      status: 'published',
+      stats: JSON.stringify(postEntry.stats || { likes: 0, shares: 0, views: 0 })
+    };
+
+    console.log("📦 Payload being sent to Appwrite:");
+    console.log(JSON.stringify(payload, null, 2));
+
+    if (existing) {
+      console.log("✏️ Updating existing document:", existing.$id);
+
+      const res = await databases.updateDocument(
+        cfg.databaseId,
+        cfg.postsCollectionId,
+        existing.$id,
+        payload
+      );
+
+      console.log("✅ Update success:", res);
+
+    } else {
+      console.log("🆕 Creating new document");
+
+      const res = await databases.createDocument(
+        cfg.databaseId,
+        cfg.postsCollectionId,
+        sdk.ID.unique(),
+        payload
+      );
+
+      console.log("✅ Create success:", res);
+    }
+
+  } catch (error) {
+    console.error("❌ APPWRITE ERROR START ❌");
+    console.error("Full Error Object:", error);
+    console.error("Message:", error?.message);
+    console.error("Code:", error?.code);
+    console.error("Type:", error?.type);
+    console.error("Response:", error?.response);
+    console.error("Stack:", error?.stack);
+    console.error("❌ APPWRITE ERROR END ❌");
+  }
 }
 
 async function exportPackage() {
@@ -126,45 +273,33 @@ async function exportPackage() {
   const author = document.getElementById('author').value.trim() || 'Meraz Ahmed';
   const ogImage = document.getElementById('ogImage').value.trim() || editorData.heroImage || fallbackOg;
   const trending = document.getElementById('trendingFlag').checked;
-  const publishNow = document.getElementById('publishNow').checked;
 
-  const meta = { title, slug, description, publishDate, readingTime, category, author, ogImage };
   const heroImage = editorData.heroImage || ogImage;
-  const postEntry = { ...meta, heroImage, heroAlt: `${title} hero image`, trending, stats: { likes: 0, shares: 0, views: 0 } };
-  const html = buildPostHtml(meta, editorData);
+  const contentHtml = (editorData.sections || []).map((s) => sectionToHtml(s, title)).join('\n');
+  const postEntry = {
+    title,
+    slug,
+    description,
+    publishDate,
+    readingTime,
+    category,
+    author,
+    ogImage,
+    heroImage,
+    heroAlt: `${title} hero image`,
+    trending,
+    contentHtml,
+    titleSize: Number(editorData.titleSize) || 32,
+    titleWeight: editorData.titleWeight || '700',
+    titleAlign: editorData.titleAlign || 'left',
+    stats: { likes: 0, shares: 0, views: 0 }
+  };
 
-  const postsRes = await fetch('/data/posts.json');
-  const posts = await postsRes.json();
-  const updated = publishNow ? [postEntry, ...posts.filter((p) => p.slug !== slug)] : posts;
+  const staticHtml = buildPostHtml(postEntry, contentHtml, postEntry);
 
-  await upsertPostInAppwrite(postEntry, html);
-
-  if ('showDirectoryPicker' in window) {
-    const dir = await window.showDirectoryPicker();
-    const writeFileHandle = async (base, path, content) => {
-      const parts = path.split('/'); let current = base;
-      for (let i = 0; i < parts.length - 1; i += 1) current = await current.getDirectoryHandle(parts[i], { create: true });
-      const fileHandle = await current.getFileHandle(parts[parts.length - 1], { create: true });
-      const writable = await fileHandle.createWritable(); await writable.write(content); await writable.close();
-    };
-    await writeFileHandle(dir, `posts/${slug}.html`, html);
-    if (publishNow) await writeFileHandle(dir, 'data/posts.json', JSON.stringify(updated, null, 2));
-    status.textContent = publishNow ? `Exported posts/${slug}.html and updated data/posts.json` : `Exported posts/${slug}.html only.`;
-    return;
-  }
-
-  
-  const htmlLink = document.createElement('a');
-  htmlLink.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
-  htmlLink.download = `${slug}.html`;
-  htmlLink.click();
-  if (publishNow) {
-    const dataLink = document.createElement('a');
-    dataLink.href = URL.createObjectURL(new Blob([JSON.stringify(updated, null, 2)], { type: 'application/json' }));
-    dataLink.download = 'posts.json';
-    dataLink.click();
-  }
-  status.textContent = publishNow ? 'Downloaded HTML + posts.json (manual placement required).' : 'Downloaded HTML only.';
+  await upsertPostInAppwrite(postEntry);
+  await publishToGitHub(postEntry, staticHtml, status);
+  status.textContent = `Published “${title}” successfully at /posts/${slug}.html.`;
 }
 
 async function injectHeroImage() {
@@ -273,11 +408,11 @@ async function saveSettingsDocument(data) {
 async function initDashboardPage() {
   if (!initAppwriteClients()) return;
   const ok = await requireSession();
-  if (!ok) { window.location.href = '/admin.html'; return; }
+  if (!ok) { window.location.href = adminWithBase('/admin.html'); return; }
 
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     try { await account.deleteSession('current'); } catch {}
-    window.location.href = '/admin.html';
+    window.location.href = adminWithBase('/admin.html');
   });
 
   // side-nav tabs
@@ -313,7 +448,7 @@ async function initDashboardPage() {
   `;
 
   const top = posts.slice().sort((a, b) => (Number(b._stats.likes || 0) + Number(b._stats.shares || 0) + Number(b._stats.views || 0)) - (Number(a._stats.likes || 0) + Number(a._stats.shares || 0) + Number(a._stats.views || 0))).slice(0, 8);
-  document.getElementById('topPosts').innerHTML = top.map((p) => `<li><a href="/posts/${p.slug}.html">${p.title}</a><div class="meta">Views: ${p._stats.views || 0} • Likes: ${p._stats.likes || 0} • Shares: ${p._stats.shares || 0}</div></li>`).join('') || '<li class="meta">No post stats yet.</li>';
+  document.getElementById('topPosts').innerHTML = top.map((p) => `<li><a href="${adminWithBase(`/posts/${p.slug}.html`)}">${p.title}</a><div class="meta">Views: ${p._stats.views || 0} • Likes: ${p._stats.likes || 0} • Shares: ${p._stats.shares || 0}</div></li>`).join('') || '<li class="meta">No post stats yet.</li>';
 
   drawBarChart(document.getElementById('categoryChart'), Object.keys(categoryCounts), Object.values(categoryCounts), '#2456e8');
   drawBarChart(document.getElementById('engagementChart'), top.map((p) => p.slug || 'post'), top.map((p) => Number(p._stats.likes || 0) + Number(p._stats.shares || 0) + Number(p._stats.views || 0)), '#0ea5a4');
@@ -355,8 +490,15 @@ async function initDashboardPage() {
       siteOgImage.value = st.OGImage || '';
       siteHeroImage.value = st.HomeHeroImage || '';
     }
-  } catch {}
-
+  } catch (error) {
+  console.error("❌ FULL APPWRITE ERROR:");
+  console.error("Message:", error.message);
+  console.error("Code:", error.code);
+  console.error("Type:", error.type);
+  console.error("Response:", error.response);
+  console.error("Full Object:", error);
+  throw error; // optional but useful
+}
   document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
     try {
       const payload = {
@@ -385,7 +527,7 @@ async function initLoginPage() {
   if (!initAppwriteClients()) return;
   try {
     await account.get();
-    window.location.href = '/admin-dashboard.html';
+    window.location.href = adminWithBase('/admin-dashboard.html');
     return;
   } catch {}
 
@@ -398,9 +540,18 @@ async function initLoginPage() {
     try {
       setError('');
       await account.createEmailPasswordSession(email.value.trim(), password.value);
-      window.location.href = '/admin-dashboard.html';
+      window.location.href = adminWithBase('/admin-dashboard.html');
     } catch (e) {
       setError(e.message || 'Login failed');
+    }
+  });
+
+  document.getElementById('githubLoginBtn')?.addEventListener('click', async () => {
+    try {
+      setError('');
+      await account.createOAuth2Session('github', `${window.location.origin}${adminWithBase('/admin-dashboard.html')}`, `${window.location.origin}${adminWithBase('/admin.html')}`);
+    } catch (e) {
+      setError(e.message || 'GitHub login failed');
     }
   });
 }
@@ -408,19 +559,28 @@ async function initLoginPage() {
 async function initEditorPage() {
   if (!initAppwriteClients()) return;
   const ok = await requireSession();
-  if (!ok) { window.location.href = '/admin.html'; return; }
+  if (!ok) { window.location.href = adminWithBase('/admin.html'); return; }
 
   document.getElementById('title')?.addEventListener('input', (e) => {
     document.getElementById('slug').value = slugify(e.target.value);
   });
   document.getElementById('exportBtn')?.addEventListener('click', exportPackage);
+  document.getElementById('saveGithubConfigBtn')?.addEventListener('click', () => {
+    saveGithubConfig();
+    document.getElementById('exportState').textContent = 'GitHub publishing config saved locally.';
+  });
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     try { await account.deleteSession('current'); } catch {}
-    window.location.href = '/admin.html';
+    window.location.href = adminWithBase('/admin.html');
   });
 
   beautifyEmbeddedEditor();
   connectUploaders();
+
+  document.getElementById('ghOwner').value = localStorage.getItem('m2z-gh-owner') || '';
+  document.getElementById('ghRepo').value = localStorage.getItem('m2z-gh-repo') || '';
+  document.getElementById('ghBranch').value = localStorage.getItem('m2z-gh-branch') || 'main';
+  document.getElementById('ghToken').value = localStorage.getItem('m2z-gh-token') || '';
 }
 
 document.addEventListener('DOMContentLoaded', () => {
